@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MY STUDY DASHBOARD</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --card-bg: #1e1e24;
+            --accent-color: #ff5c5c;
+            --text-color: #ffffff;
+            --text-muted: #a0a0a5;
+            --border-color: #2d2d35;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); display: flex; min-height: 100vh; }
+
+        /* 사이드바 메뉴 */
+        #sidebar {
+            width: 250px;
+            background-color: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .logo { font-size: 20px; font-weight: bold; margin-bottom: 30px; color: var(--accent-color); text-align: center; }
+        .menu-btn {
+            background: none; border: none; color: var(--text-muted); padding: 15px; text-align: left;
+            font-size: 16px; cursor: pointer; border-radius: 8px; transition: all 0.3s;
+        }
+        .menu-btn.active, .menu-btn:hover { background-color: var(--border-color); color: var(--text-color); font-weight: bold; }
+
+        /* 메인 콘텐츠 영역 */
+        main { flex: 1; padding: 40px; overflow-y: auto; }
+        .page { display: none; }
+        .page.active { display: block; }
+
+        h2 { margin-bottom: 20px; font-size: 24px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
+        h3 { font-size: 18px; margin-bottom: 10px; }
+        h4 { font-size: 15px; margin: 10px 0 5px 0; color: var(--accent-color); }
+        
+        /* 공통 카드 스타일 */
+        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        
+        /* 폼 요소 스타일 */
+        label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 14px; }
+        input, select, textarea {
+            width: 100%; padding: 10px; background: var(--bg-color); border: 1px solid var(--border-color);
+            color: white; border-radius: 6px; margin-bottom: 15px;
+        }
+        .dynamic-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .dynamic-row input[type="text"] { flex: 2; margin-bottom: 0; }
+        .dynamic-row input[type="number"] { flex: 1; margin-bottom: 0; }
+        
+        button.btn {
+            background: var(--accent-color); color: white; border: none; padding: 10px 20px;
+            border-radius: 6px; cursor: pointer; font-weight: bold;
+        }
+        button.btn:hover { opacity: 0.9; }
+        button.btn-sub { background: #444; color: white; font-size: 12px; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer; }
+
+        /* 메인화면 D-DAY 및 명언 */
+        .dday-container { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+        .dday-card { background: linear-gradient(135deg, #ff5c5c, #ff7b7b); padding: 15px 25px; border-radius: 10px; text-align: center; min-width: 120px; }
+        .dday-card h3 { font-size: 24px; margin-bottom: 0; }
+
+        /* 테이블 스타일 */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; }
+        th, td { border: 1px solid var(--border-color); padding: 12px; text-align: center; }
+        th { background: var(--border-color); }
+        .td-left { text-align: left; font-size: 13px; line-height: 1.6; }
+
+        /* 캘린더 간단 그리드 */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
+        .calendar-day { background: var(--bg-color); border: 1px solid var(--border-color); min-height: 105px; padding: 5px; font-size: 12px; border-radius: 4px; text-align: left; vertical-align: top; }
+        .calendar-header { font-weight: bold; background: var(--border-color); padding: 10px 0; border-radius: 4px; text-align: center; }
+        .calendar-day.other-month { opacity: 0.3; }
+
+        /* 차트 크기 제한 */
+        .chart-container { max-width: 450px; margin: 0 auto; }
+
+        /* 피드백 스타일 */
+        .feedback-box { padding: 15px; border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 10px; line-height: 1.5; }
+        .feedback-up { background-color: rgba(76, 175, 80, 0.15); border: 1px solid var(--success-color); color: #81c784; }
+        .feedback-down { background-color: rgba(255, 152, 0, 0.15); border: 1px solid var(--warning-color); color: #ffb74d; }
+    </style>
+</head>
+<body>
+
+    <nav id="sidebar">
+        <div class="logo">STUDY ROOM</div>
+        <button class="menu-btn active" onclick="switchPage('home')">메인 홈</button>
+        <button class="menu-btn" onclick="switchPage('study')">국어 학습 (세부분석)</button>
+        <button class="menu-btn" onclick="switchPage('mock')">모의고사 성적</button>
+        <button class="menu-btn" onclick="switchPage('schedule')">시간표 및 학사일정</button>
+        <button class="menu-btn" onclick="switchPage('ypt')">열품타 시간 관리</button>
+        <button class="menu-btn" onclick="switchPage('memo')">메모판</button>
+    </nav>
+
+    <main>
+        <div id="home-page" class="page active">
+            <h2>대시보드</h2>
+            <div class="dday-container" id="main-dday-container"></div>
+            
+            <div class="grid-2">
+                <div class="card">
+                    <h3>최근 열품타 페이스</h3>
+                    <div id="main-ypt-summary" style="margin-top: 15px;">
+                        열품타 메뉴에서 공부 시간을 입력하시면 전날과의 비교 피드백이 여기에 실시간으로 표시됩니다!
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>오늘의 명언 / 오늘의 다짐</h3>
+                    <p id="main-quote" style="font-style: italic; color: var(--text-muted); margin-top: 10px; font-size: 18px;">
+                        "등록된 명언이 없습니다. 메모판에서 등록해 보세요!"
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div id="study-page" class="page">
+            <h2>국어 학습 관리 (지문별 세부 분석)</h2>
+            <div class="grid-2">
+                <div class="card">
+                    <h3>학습 기록 입력</h3>
+                    <form id="study-form" onsubmit="saveStudyRecord(event)">
+                        <input type="hidden" id="study-idx">
+
+                        <label>입력란 제목</label>
+                        <input type="text" id="study-title" required placeholder="예: 마닳 1권 3회차">
+
+                        <label>선택 과목</label>
+                        <select id="study-sub-type">
+                            <option value="화법과 작문">화법과 작문</option>
+                            <option value="언어와 매체">언어와 매체</option>
+                        </select>
+
+                        <div style="margin-bottom: 15px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h4>[문학] 지문별 걸린 시간 (기준: 총 30분)</h4>
+                                <button type="button" class="btn-sub" onclick="addDynamicRow('lit-container', '문학 지문')">+ 지문 추가</button>
+                            </div>
+                            <div id="lit-container">
+                                <div class="dynamic-row">
+                                    <input type="text" placeholder="지문 제목 (ex. 현대시)" value="현대시" required>
+                                    <input type="number" placeholder="분" required>
+                                </div>
+                                <div class="dynamic-row">
+                                    <input type="text" placeholder="지문 제목 (ex. 현대소설)" value="현대소설" required>
+                                    <input type="number" placeholder="분" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h4>[독서] 지문별 걸린 시간 (기준: 총 40분)</h4>
+                                <button type="button" class="btn-sub" onclick="addDynamicRow('doc-container', '독서 지문')">+ 지문 추가</button>
+                            </div>
+                            <div id="doc-container">
+                                <div class="dynamic-row">
+                                    <input type="text" placeholder="지문 제목 (ex. 인문)" value="독서론/인문" required>
+                                    <input type="number" placeholder="분" required>
+                                </div>
+                                <div class="dynamic-row">
+                                    <input type="text" placeholder="지문 제목 (ex. 과학)" value="과학/기술" required>
+                                    <input type="number" placeholder="분" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h4>[선택과목] 세부 걸린 시간 (기준: 총 11분)</h4>
+                                <button type="button" class="btn-sub" onclick="addDynamicRow('choice-container', '세부 파트')">+ 파트 추가</button>
+                            </div>
+                            <div id="choice-container">
+                                <div class="dynamic-row">
+                                    <input type="text" placeholder="파트 (ex. 지문1 / 문법)" value="지문1" required>
+                                    <input type="number" placeholder="분" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <label>틀린 문항 및 오답 메모</label>
+                        <textarea id="study-wrong" rows="3" placeholder="예: 문학 12번(-3점) / 과학 지문 인과관계 분석 실수"></textarea>
+
+                        <button type="submit" class="btn">기록 저장</button>
+                        <button type="button" class="btn" style="background:#555;" onclick="resetStudyForm()">초기화</button>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h3>영역별 시간 심층 분석 결과</h3>
+                    <div id="analysis-output" style="line-height: 1.8; margin-bottom: 20px;">
+                        기록을 저장하거나 아래 히스토리에서 [분석] 버튼을 누르시면 기준 시간 대비 합산 분석표가 나타납니다.
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>학습 기록 히스토리</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>제목</th>
+                            <th>선택</th>
+                            <th>문학 상세 (총합)</th>
+                            <th>독서 상세 (총합)</th>
+                            <th>선택과목 상세 (총합)</th>
+                            <th>오답 메모</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="study-history-table"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="mock-page" class="page">
+            <h2>모의고사 성적 관리</h2>
+            <div class="grid-2">
+                <div class="card">
+                    <h3>성적 입력/수정</h3>
+                    <form id="score-form" onsubmit="saveScore(event)">
+                        <input type="hidden" id="score-idx">
+                        <label>시험 명칭</label>
+                        <input type="text" id="score-title" placeholder="예: 2026년 6월 모평" required>
+                        <label>국어 백분위 또는 표준점수 (0~100 추천)</label>
+                        <input type="number" id="score-kor" min="0" max="100" required>
+                        <label>수학</label>
+                        <input type="number" id="score-math" min="0" max="100" required>
+                        <label>영어 (등급 또는 점수 기준 100점 환산)</label>
+                        <input type="number" id="score-eng" min="0" max="100" required>
+                        <label>탐구1</label>
+                        <input type="number" id="score-tam1" min="0" max="100" required>
+                        <label>탐구2</label>
+                        <input type="number" id="score-tam2" min="0" max="100" required>
+                        <button type="submit" class="btn">성적 저장</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <h3>오각형 역량 스텟 (가장 최근 시험)</h3>
+                    <div class="chart-container">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>성적 추이 및 비교</h3>
+                <div id="score-trend-analysis" style="margin-bottom: 15px; font-weight: bold; color: var(--accent-color);"></div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>시험명</th>
+                            <th>국어</th>
+                            <th>수학</th>
+                            <th>영어</th>
+                            <th>탐구1</th>
+                            <th>탐구2</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="score-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="schedule-page" class="page">
+            <h2>시간표 및 학사일정</h2>
+            
+            <div class="card">
+                <h3>나의 3학년 시간표</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>교시</th>
+                            <th>월</th>
+                            <th>화</th>
+                            <th>수</th>
+                            <th>목</th>
+                            <th>금</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1교시</td><td>HR (3-3)</td><td>지구과학Ⅱ (3-4)</td><td>수학과제탐구 (3-1)</td><td>일본어 (3-4)</td><td>영어독해와작문 (3-1)</td></tr>
+                        <tr><td>2교시</td><td>일본어 (3-4)</td><td>수학과제탐구 (3-1)</td><td>사회문제탐구 (3-4)</td><td>영어독해와작문 (3-1)</td><td>사회문제탐구 (3-4)</td></tr>
+                        <tr><td>3교시</td><td>공강 (3-3)</td><td>화법과작문 (3-1)</td><td>화법과작문 (3-1)</td><td>수학과제탐구 (3-1)</td><td>화법과작문 (3-1)</td></tr>
+                        <tr><td>4교시</td><td>영어독해와작문 (3-1)</td><td>영어독해와작문 (3-1)</td><td>생활과윤리 (3층 홈베이스)</td><td>운동 (3-3)</td><td>공강 (3-3)</td></tr>
+                        <tr><td>5교시</td><td>생활과윤리 (3층 홈베이스)</td><td>생활과윤리 (3층 홈베이스)</td><td>지구과학Ⅱ (3-4)</td><td>생활과윤리 (3층 홈베이스)</td><td>지구과학Ⅱ (3-4)</td></tr>
+                        <tr><td>6교시</td><td>수학과제탐구 (3-1)</td><td>논리학 (3-3)</td><td>영어독해와작문 (3-1)</td><td>지구과학Ⅱ (3-4)</td><td>진로 (3-3)</td></tr>
+                        <tr><td>7교시</td><td>화법과작문 (3-1)</td><td>사회문제탐구 (3-4)</td><td>7교시 (3-3)</td><td>화법과작문 (3-1)</td><td>공강 (3-3)</td></tr>
+                        <tr><td>8교시</td><td>수학 (3-2)</td><td>국어 (3-1)</td><td>사회와문화 (3-5)</td><td>수학 (3-2)</td><td>국어 (3-1)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>수동 고정 D-DAY 등록</h3>
+                    <form onsubmit="saveDday(event)">
+                        <label>일정 명칭</label>
+                        <input type="text" id="dday-title" placeholder="예: 6월 모평, 1차고사" required>
+                        <label>목표 날짜</label>
+                        <input type="date" id="dday-date" required>
+                        <button type="submit" class="btn">D-DAY 추가</button>
+                    </form>
+                    <table style="margin-top:15px;">
+                        <thead>
+                            <tr><th>목표</th><th>날짜</th><th>디데이</th><th>삭제</th></tr>
+                        </thead>
+                        <tbody id="dday-table-body"></tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h3>개인 캘린더 일정 추가</h3>
+                    <form onsubmit="addCalendarEvent(event)">
+                        <label>날짜 선택</label>
+                        <input type="date" id="cal-date" required>
+                        <label>일정 내용</label>
+                        <input type="text" id="cal-text" placeholder="예: 학원 보강, 독서실 결제" required>
+                        <button type="submit" class="btn">캘린더 추가</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>2026년 6월 학사일정 달력</h3>
+                <div class="calendar-grid">
+                    <div class="calendar-header">일</div><div class="calendar-header">월</div><div class="calendar-header">화</div><div class="calendar-header">수</div><div class="calendar-header">목</div><div class="calendar-header">금</div><div class="calendar-header">토</div>
+                    
+                    <div class="calendar-day other-month">31</div>
+                    <script>
+                        // 전 학년 및 학년별(①,②,③) 차이를 완벽히 매핑한 학사 일정 오브젝트
+                        const junAcademic = {
+                            3: "건강검진①",
+                            4: "6월 모평③ / 전국연합학력평가①②",
+                            9: "건강검진①",
+                            17: "교직원 에듀테크 연수",
+                            30: "1학기 2차고사①②③"
+                        };
+
+                        for(let d=1; d<=30; d++){
+                            let dateStr = `2026-06-${d < 10 ? '0'+d : d}`;
+                            let academicText = junAcademic[d] ? `<div style="color:#ff7b7b; margin-top:4px; font-weight:bold; font-size:11px;">[학사] ${junAcademic[d]}</div>` : '';
+                            document.write(`
+                                <div class="calendar-day" id="day-${dateStr}">
+                                    <strong>${d}</strong>
+                                    ${academicText}
+                                    <div class="evt-list" style="color:cyan; font-size:11px; margin-top:2px;"></div>
+                                </div>
+                            `);
+                        }
+                    </script>
+                    <div class="calendar-day other-month">1</div>
+                    <div class="calendar-day other-month">2</div>
+                    <div class="calendar-day other-month">3</div>
+                    <div class="calendar-day other-month">4</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="ypt-page" class="page">
+            <h2>열품타 공부 시간 관리</h2>
+            <div class="grid-2">
+                <div class="card">
+                    <h3>오늘의 공부 시간 입력</h3>
+                    <form onsubmit="saveYptRecord(event)">
+                        <label>날짜 선택</label>
+                        <input type="date" id="ypt-date" required>
+                        <label>공부 시간 (시간)</label>
+                        <input type="number" id="ypt-hour" min="0" max="24" required placeholder="예: 7">
+                        <label>공부 시간 (분)</label>
+                        <input type="number" id="ypt-min" min="0" max="59" required placeholder="예: 30">
+                        <button type="submit" class="btn">시간 저장</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <h3>전날 대비 인공지능 매니저 피드백</h3>
+                    <div id="ypt-feedback-container">
+                        기록을 입력하시면 어제 기록과 대조하여 분석 피드백이 나옵니다.
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>열품타 누적 기록 목록</h3>
+                <table>
+                    <thead>
+                        <tr><th>날짜</th><th>총 공부 시간</th><th>삭제</th></tr>
+                    </thead>
+                    <tbody id="ypt-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="memo-page" class="page">
+            <h2>메모판 & 명언 관리</h2>
+            <div class="grid-2">
+                <div class="card">
+                    <h3>좌우명 / 오늘의 명언 설정</h3>
+                    <input type="text" id="quote-input" placeholder="메인 화면에 띄울 명언을 적으세요.">
+                    <button class="btn" onclick="saveQuote()">명언 변경</button>
+                </div>
+                <div class="card">
+                    <h3>일반 메모</h3>
+                    <textarea id="memo-input" rows="5" placeholder="기억해야 할 내용, 오답 팁 등을 자유롭게 적으세요."></textarea>
+                    <button class="btn" onclick="saveMemo()">메모 저장</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- 페이지 전환 ---
+        function switchPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(pageId + '-page').classList.add('active');
+            if(event) event.target.classList.add('active');
+            if(pageId === 'mock') { renderRadarChart(); }
+        }
+
+        // --- 데이터 초기화 및 로드 ---
+        let studyRecords = JSON.parse(localStorage.getItem('studyRecords')) || [];
+        let scoreRecords = JSON.parse(localStorage.getItem('scoreRecords')) || [];
+        let ddayRecords = JSON.parse(localStorage.getItem('ddayRecords')) || [];
+        let calEvents = JSON.parse(localStorage.getItem('calEvents')) || [];
+        let yptRecords = JSON.parse(localStorage.getItem('yptRecords')) || [];
+
+        // 이미지에서 확인된 핵심 학년별 차별화 일정(수능, 2학기 지필고사 격차) 디폴트 디데이 데이터 셋업
+        if(ddayRecords.length === 0 || ddayRecords.some(r => r.title === "1학기 2차고사")) {
+            ddayRecords = [
+                { title: "[공통] 6월 모의평가/학평", date: "2026-06-04" },
+                { title: "[공통] 1학기 2차 기말고사", date: "2026-06-30" },
+                { title: "[공통] 2학기 1차 중간고사", date: "2026-10-01" },
+                { title: "[3학년] 대학수학능력시험", date: "2026-11-19" },
+                { title: "[3학년] 2학기 2차 기말고사", date: "2026-11-23" },
+                { title: "[1·2학년] 2학기 2차 기말고사", date: "2026-12-08" }
+            ];
+            localStorage.setItem('ddayRecords', JSON.stringify(ddayRecords));
+        }
+
+        document.getElementById('ypt-date').value = new Date().toISOString().substring(0, 10);
+
+        // --- 국어 학습 동적 로우 생성 시스템 ---
+        function addDynamicRow(containerId, placeholderName) {
+            const container = document.getElementById(containerId);
+            const row = document.createElement('div');
+            row.className = 'dynamic-row';
+            row.innerHTML = `
+                <input type="text" placeholder="${placeholderName} 제목" required>
+                <input type="number" placeholder="분" required>
+                <button type="button" style="background:none; border:none; color:red; cursor:pointer;" onclick="this.parentElement.remove()">X</button>
+            `;
+            container.appendChild(row);
+        }
+
+        function getContainerData(containerId) {
+            const container = document.getElementById(containerId);
+            const rows = container.querySelectorAll('.dynamic-row');
+            let items = [];
+            let total = 0;
+            rows.forEach(row => {
+                const inputs = row.querySelectorAll('input');
+                const title = inputs[0].value;
+                const min = parseInt(inputs[1].value) || 0;
+                if(title) {
+                    items.push({ title, min });
+                    total += min;
+                }
+            });
+            return { items, total };
+        }
+
+        function setContainerData(containerId, items) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = "";
+            items.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'dynamic-row';
+                row.innerHTML = `
+                    <input type="text" value="${item.title}" required>
+                    <input type="number" value="${item.min}" required>
+                    <button type="button" style="background:none; border:none; color:red; cursor:pointer;" onclick="this.parentElement.remove()">X</button>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function saveStudyRecord(e) {
+            e.preventDefault();
+            const idx = document.getElementById('study-idx').value;
+            
+            const litData = getContainerData('lit-container');
+            const docData = getContainerData('doc-container');
+            const choiceData = getContainerData('choice-container');
+
+            const record = {
+                title: document.getElementById('study-title').value,
+                subType: document.getElementById('study-sub-type').value,
+                litItems: litData.items,
+                litTotal: litData.total,
+                docItems: docData.items,
+                docTotal: docData.total,
+                choiceItems: choiceData.items,
+                choiceTotal: choiceData.total,
+                wrong: document.getElementById('study-wrong').value
+            };
+
+            if(idx === "") { studyRecords.push(record); } 
+            else { studyRecords[idx] = record; }
+
+            localStorage.setItem('studyRecords', JSON.stringify(studyRecords));
+            resetStudyForm();
+            renderStudyHistory();
+            analyzeStudyTime(record);
+        }
+
+        function resetStudyForm() {
+            document.getElementById('study-form').reset();
+            document.getElementById('study-idx').value = "";
+            document.getElementById('lit-container').innerHTML = `
+                <div class="dynamic-row"><input type="text" value="현대시" required><input type="number" placeholder="분" required></div>
+                <div class="dynamic-row"><input type="text" value="현대소설" required><input type="number" placeholder="분" required></div>
+            `;
+            document.getElementById('doc-container').innerHTML = `
+                <div class="dynamic-row"><input type="text" value="독서론/인문" required><input type="number" placeholder="분" required></div>
+                <div class="dynamic-row"><input type="text" value="과학/기술" required><input type="number" placeholder="분" required></div>
+            `;
+            document.getElementById('choice-container').innerHTML = `
+                <div class="dynamic-row"><input type="text" value="지문1" required><input type="number" placeholder="분" required></div>
+            `;
+        }
+
+        function renderStudyHistory() {
+            const tbody = document.getElementById('study-history-table');
+            tbody.innerHTML = "";
+            studyRecords.forEach((r, i) => {
+                let litStr = r.litItems.map(item => `${item.title}:${item.min}분`).join('<br>') + ` <strong>(총 ${r.litTotal}분)</strong>`;
+                let docStr = r.docItems.map(item => `${item.title}:${item.min}분`).join('<br>') + ` <strong>(총 ${r.docTotal}분)</strong>`;
+                let choiceStr = r.choiceItems.map(item => `${item.title}:${item.min}분`).join('<br>') + ` <strong>(총 ${r.choiceTotal}분)</strong>`;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${r.title}</td>
+                        <td><span style="color:yellow">${r.subType}</span></td>
+                        <td class="td-left">${litStr}</td>
+                        <td class="td-left">${docStr}</td>
+                        <td class="td-left">${choiceStr}</td>
+                        <td>${r.wrong}</td>
+                        <td>
+                            <button onclick="triggerAnalysis(${i})" style="color:springgreen; background:none; border:none; cursor:pointer;">분석</button><br><br>
+                            <button onclick="editStudy(${i})" style="color:cyan; background:none; border:none; cursor:pointer;">수정</button> | 
+                            <button onclick="deleteStudy(${i})" style="color:red; background:none; border:none; cursor:pointer;">삭제</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function triggerAnalysis(i) {
+            analyzeStudyTime(studyRecords[i]);
+        }
+
+        function editStudy(i) {
+            const r = studyRecords[i];
+            document.getElementById('study-idx').value = i;
+            document.getElementById('study-title').value = r.title;
+            document.getElementById('study-sub-type').value = r.subType;
+            setContainerData('lit-container', r.litItems);
+            setContainerData('doc-container', r.docItems);
+            setContainerData('choice-container', r.choiceItems);
+            document.getElementById('study-wrong').value = r.wrong;
+            analyzeStudyTime(r);
+        }
+
+        function deleteStudy(i) {
+            studyRecords.splice(i, 1);
+            localStorage.setItem('studyRecords', JSON.stringify(studyRecords));
+            renderStudyHistory();
+        }
+
+        function analyzeStudyTime(r) {
+            let out = `<h4>📊 [ ${r.title} ] 합산 시간 심층 피드백</h4>`;
+            
+            let litDiff = r.litTotal - 30;
+            out += `• <b>문학 전체:</b> 기준(30분) 대비 <b>${litDiff <= 0 ? Math.abs(litDiff) + '분 단축 세이브 완료!' : litDiff + '분 초과 지연 (지문 조절 필요)'}</b><br>`;
+            r.litItems.forEach(item => { out += `&nbsp;&nbsp; - ${item.title}: ${item.min}분<br>`; });
+
+            let docDiff = r.docTotal - 40;
+            out += `<br>• <b>독서 전체:</b> 기준(40분) 대비 <b>${docDiff <= 0 ? Math.abs(docDiff) + '분 단축 성공' : docDiff + '분 초과 지연 (독해력 보완 필요)'}</b><br>`;
+            r.docItems.forEach(item => { out += `&nbsp;&nbsp; - ${item.title}: ${item.min}분<br>`; });
+
+            let choiceDiff = r.choiceTotal - 11;
+            out += `<br>• <b>선택(${r.subType}):</b> 기준(11분) 대비 <b>${choiceDiff <= 0 ? Math.abs(choiceDiff) + '분 단축 이득' : choiceDiff + '분 초과 지연'}</b><br>`;
+            r.choiceItems.forEach(item => { out += `&nbsp;&nbsp; - ${item.title}: ${item.min}분<br>`; });
+
+            document.getElementById('analysis-output').innerHTML = out;
+        }
+
+        // --- 열품타 관리 시스템 ---
+        function saveYptRecord(e) {
+            e.preventDefault();
+            const date = document.getElementById('ypt-date').value;
+            const hour = parseInt(document.getElementById('ypt-hour').value) || 0;
+            const min = parseInt(document.getElementById('ypt-min').value) || 0;
+            const totalMinutes = (hour * 60) + min;
+
+            const existingIdx = yptRecords.findIndex(r => r.date === date);
+            if(existingIdx !== -1) { yptRecords[existingIdx].totalMinutes = totalMinutes; } 
+            else { yptRecords.push({ date, totalMinutes }); }
+
+            yptRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
+            localStorage.setItem('yptRecords', JSON.stringify(yptRecords));
+            
+            document.getElementById('ypt-hour').value = "";
+            document.getElementById('ypt-min').value = "";
+            renderYpt();
+        }
+
+        function renderYpt() {
+            const tbody = document.getElementById('ypt-table-body');
+            tbody.innerHTML = "";
+            [...yptRecords].reverse().forEach((r, idx) => {
+                const realIdx = yptRecords.length - 1 - idx;
+                const h = Math.floor(r.totalMinutes / 60);
+                const m = r.totalMinutes % 60;
+                tbody.innerHTML += `<tr><td>${r.date}</td><td><strong>${h}시간 ${m}분</strong></td><td><button onclick="deleteYpt(${realIdx})" style="color:red; background:none; border:none; cursor:pointer;">삭제</button></td></tr>`;
+            });
+            generateYptFeedback();
+        }
+
+        function deleteYpt(i) {
+            yptRecords.splice(i, 1);
+            localStorage.setItem('yptRecords', JSON.stringify(yptRecords));
+            renderYpt();
+        }
+
+        function generateYptFeedback() {
+            const container = document.getElementById('ypt-feedback-container');
+            const summary = document.getElementById('main-ypt-summary');
+            if(yptRecords.length < 2) {
+                let initialMsg = "기록이 더 쌓이면 전날 비교 피드백이 자동 생성됩니다!";
+                container.innerHTML = initialMsg;
+                summary.innerHTML = initialMsg;
+                return;
+            }
+
+            const today = yptRecords[yptRecords.length - 1];
+            const yesterday = yptRecords[yptRecords.length - 2];
+            const diff = today.totalMinutes - yesterday.totalMinutes;
+
+            const currentH = Math.floor(today.totalMinutes / 60);
+            const currentM = today.totalMinutes % 60;
+
+            let fbHTML = `<div style="font-size:18px; margin-bottom:10px;">최근 등록일(${today.date}): <b>${currentH}시간 ${currentM}분</b> 수강 완료</div>`;
+            
+            if(diff > 0) {
+                fbHTML += `<div class="feedback-box feedback-up">🚀 전날 대비 ${Math.floor(diff/60)}시간 ${diff%60}분 상승했습니다! 페이스 아주 좋습니다. 이 기세를 유지하세요!</div>`;
+            } else if(diff < 0) {
+                fbHTML += `<div class="feedback-box feedback-down">⚠️ 전날 대비 ${Math.floor(Math.abs(diff)/60)}시간 ${Math.abs(diff)%60}분 감소했습니다. 집중력을 잃지 않도록 마인드셋을 정비해보세요!</div>`;
+            } else {
+                fbHTML += `<div class="feedback-box" style="background:#333; color:white; border:1px solid #555;">🔥 전날과 완벽하게 동일한 시간을 공부하셨습니다! 규칙적인 흐름의 장인입니다.</div>`;
+            }
+
+            container.innerHTML = fbHTML;
+            summary.innerHTML = fbHTML;
+        }
+
+        // --- 모의고사 성적 관리 ---
+        let radarChartInstance = null;
+        function saveScore(e) {
+            e.preventDefault();
+            const idx = document.getElementById('score-idx').value;
+            const record = {
+                title: document.getElementById('score-title').value,
+                kor: parseInt(document.getElementById('score-kor').value) || 0,
+                math: parseInt(document.getElementById('score-math').value) || 0,
+                eng: parseInt(document.getElementById('score-eng').value) || 0,
+                tam1: parseInt(document.getElementById('score-tam1').value) || 0,
+                tam2: parseInt(document.getElementById('score-tam2').value) || 0,
+            };
+
+            if(idx === "") { scoreRecords.push(record); } 
+            else { scoreRecords[idx] = record; }
+
+            localStorage.setItem('scoreRecords', JSON.stringify(scoreRecords));
+            document.getElementById('score-form').reset();
+            document.getElementById('score-idx').value = "";
+            renderScores();
+        }
+
+        function renderScores() {
+            const tbody = document.getElementById('score-table-body');
+            tbody.innerHTML = "";
+            scoreRecords.forEach((r, i) => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td><b>${r.title}</b></td>
+                        <td>${r.kor}</td>
+                        <td>${r.math}</td>
+                        <td>${r.eng}</td>
+                        <td>${r.tam1}</td>
+                        <td>${r.tam2}</td>
+                        <td>
+                            <button onclick="editScore(${i})" style="color:cyan; background:none; border:none; cursor:pointer;">수정</button> | 
+                            <button onclick="deleteScore(${i})" style="color:red; background:none; border:none; cursor:pointer;">삭제</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            renderRadarChart();
+            generateScoreTrend();
+        }
+
+        function editScore(i) {
+            const r = scoreRecords[i];
+            document.getElementById('score-idx').value = i;
+            document.getElementById('score-title').value = r.title;
+            document.getElementById('score-kor').value = r.kor;
+            document.getElementById('score-math').value = r.math;
+            document.getElementById('score-eng').value = r.eng;
+            document.getElementById('score-tam1').value = r.tam1;
+            document.getElementById('score-tam2').value = r.tam2;
+        }
+
+        function deleteScore(i) {
+            scoreRecords.splice(i, 1);
+            localStorage.setItem('scoreRecords', JSON.stringify(scoreRecords));
+            renderScores();
+        }
+
+        function generateScoreTrend() {
+            const trendDiv = document.getElementById('score-trend-analysis');
+            if(scoreRecords.length < 2) {
+                trendDiv.innerHTML = "성적 기록이 2개 이상 쌓이면 전회차 대비 직관적인 분석 추이가 나타납니다.";
+                return;
+            }
+            const current = scoreRecords[scoreRecords.length - 1];
+            const previous = scoreRecords[scoreRecords.length - 2];
+
+            let text = `📈 [성적 피드백] '${previous.title}' 대비 '${current.title}' 추이: `;
+            let diffKor = current.kor - previous.kor;
+            let diffMath = current.math - previous.math;
+
+            text += `국어 (${diffKor >= 0 ? '+' + diffKor : diffKor}), `;
+            text += `수학 (${diffMath >= 0 ? '+' + diffMath : diffMath})`;
+            trendDiv.innerHTML = text;
+        }
+
+        function renderRadarChart() {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            let dataArr = [0, 0, 0, 0, 0];
+            let labelName = "등록 데이터 없음";
+
+            if(scoreRecords.length > 0) {
+                const latest = scoreRecords[scoreRecords.length - 1];
+                dataArr = [latest.kor, latest.math, latest.eng, latest.tam1, latest.tam2];
+                labelName = latest.title;
+            }
+
+            if(radarChartInstance) { radarChartInstance.destroy(); }
+
+            radarChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['국어', '수학', '영어', '탐구1', '탐구2'],
+                    datasets: [{
+                        label: labelName,
+                        data: dataArr,
+                        backgroundColor: 'rgba(255, 92, 92, 0.2)',
+                        borderColor: 'rgba(255, 92, 92, 1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: 'rgba(255, 92, 92, 1)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        r: {
+                            angleLines: { color: '#444' },
+                            grid: { color: '#444' },
+                            pointLabels: { color: '#fff', font: { size: 14 } },
+                            ticks: { display: false },
+                            min: 0,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#fff' } }
+                    }
+                }
+            });
+        }
+
+        // --- D-DAY 역대 연동 시스템 ---
+        function saveDday(e) {
+            e.preventDefault();
+            const title = document.getElementById('dday-title').value;
+            const date = document.getElementById('dday-date').value;
+            ddayRecords.push({ title, date });
+            localStorage.setItem('ddayRecords', JSON.stringify(ddayRecords));
+            document.getElementById('dday-title').value = "";
+            document.getElementById('dday-date').value = "";
+            renderDdays();
+        }
+
+        function deleteDday(i) {
+            ddayRecords.splice(i, 1);
+            localStorage.setItem('ddayRecords', JSON.stringify(ddayRecords));
+            renderDdays();
+        }
+
+        function renderDdays() {
+            const tbody = document.getElementById('dday-table-body');
+            const mainContainer = document.getElementById('main-dday-container');
+            tbody.innerHTML = "";
+            mainContainer.innerHTML = "";
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            // 날짜 순 정렬
+            ddayRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+            ddayRecords.forEach((r, i) => {
+                const targetDate = new Date(r.date);
+                targetDate.setHours(0,0,0,0);
+                const diffTime = targetDate - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                let ddayStr = "";
+                if(diffDays === 0) ddayStr = "D-DAY";
+                else if(diffDays > 0) ddayStr = `D-${diffDays}`;
+                else ddayStr = `D+${Math.abs(diffDays)}`;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${r.title}</td>
+                        <td>${r.date}</td>
+                        <td><strong style="color:var(--accent-color)">${ddayStr}</strong></td>
+                        <td><button onclick="deleteDday(${i})" style="color:red; background:none; border:none; cursor:pointer;">X</button></td>
+                    </tr>
+                `;
+
+                // 메인 상단 노출 제한 (다가올 미래 일정 최대 4개 보이기)
+                if(diffDays >= 0) {
+                    mainContainer.innerHTML += `
+                        <div class="dday-card">
+                            <p style="font-size:13px; opacity:0.9; margin-bottom:5px;">${r.title}</p>
+                            <h3>${ddayStr}</h3>
+                            <span style="font-size:10px; opacity:0.7;">${r.date}</span>
+                        </div>
+                    `;
+                }
+            });
+
+            if(mainContainer.innerHTML === "") {
+                mainContainer.innerHTML = `<div style="color:var(--text-muted)">다가오는 마감 및 시험 일정이 없습니다. 디데이를 등록하세요!</div>`;
+            }
+        }
+
+        // --- 개인 캘린더 이벤트 추가 ---
+        function addCalendarEvent(e) {
+            e.preventDefault();
+            const date = document.getElementById('cal-date').value;
+            const text = document.getElementById('cal-text').value;
+
+            calEvents.push({ date, text });
+            localStorage.setItem('calEvents', JSON.stringify(calEvents));
+            document.getElementById('cal-text').value = "";
+            renderCalendarEvents();
+        }
+
+        function renderCalendarEvents() {
+            // 달력 초기 로드 시 수동 이벤트 리스트 청소 후 할당
+            document.querySelectorAll('.evt-list').forEach(el => el.innerHTML = "");
+            calEvents.forEach(evt => {
+                const targetDayCell = document.getElementById(`day-${evt.date}`);
+                if(targetDayCell) {
+                    const listContainer = targetDayCell.querySelector('.evt-list');
+                    listContainer.innerHTML += `<div style="color:#00ffff; margin-top:2px;">• ${evt.text}</div>`;
+                }
+            });
+        }
+
+        // --- 메모 및 명언 영구 저장 시스템 ---
+        function saveQuote() {
+            const txt = document.getElementById('quote-input').value;
+            localStorage.setItem('customQuote', txt);
+            displayQuote();
+        }
+        function displayQuote() {
+            const saved = localStorage.getItem('customQuote');
+            if(saved) {
+                document.getElementById('main-quote').innerText = `"${saved}"`;
+                document.getElementById('quote-input').value = saved;
+            }
+        }
+        function saveMemo() {
+            const txt = document.getElementById('memo-input').value;
+            localStorage.setItem('customMemo', txt);
+            alert('메모가 안전하게 브라우저에 저장되었습니다.');
+        }
+        function displayMemo() {
+            const saved = localStorage.getItem('customMemo');
+            if(saved) { document.getElementById('memo-input').value = saved; }
+        }
+
+        // --- 윈도우 로드 완료 시 전역 렌더링 핸들러 ---
+        window.onload = function() {
+            renderStudyHistory();
+            renderScores();
+            renderYpt();
+            renderDdays();
+            renderCalendarEvents();
+            displayQuote();
+            displayMemo();
+        }
+    </script>
+</body>
+</html>
